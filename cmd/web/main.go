@@ -58,7 +58,7 @@ func main() {
 
 	r.Route("/api/v1", api.InitAPIRoutes)
 
-	appHost := env.Get("app_host")
+	appHost := env.Get("APP_HOST")
 	fmt.Println("Running at : " + appHost)
 
 	/*
