@@ -1,68 +1,53 @@
 package api
 
 import (
-	// "bytes"
+	"bytes"
 	"encoding/json"
 	// "errors"
-	// "math"
+	"math"
 	"net/http"
 	// "fmt"
 
 	"github.com/go-chi/chi"
 
 	"gitlab.com/standard-go/project/internal/app/project"
-	// "gitlab.com/standard-go/project/internal/app/config/env"
+	"gitlab.com/standard-go/project/internal/app/config/env"
 	"gitlab.com/standard-go/project/internal/app/responses"
-	// "github.com/mongodb/mongo-go-driver/bson/primitive"
 )
 
 func IndexUser(w http.ResponseWriter, r *http.Request) {
 	pageRequest := r.Context().Value(pageRequestCtxKey).(*project.PageRequest)
 
-	fetch, _, err := srv.FetchIndexUser(pageRequest)
+	fetch, count, err := srv.FetchIndexUser(pageRequest)
 	if err != nil {
 		printError(err, w)
 		return
 	}
 
-	/*
-	 * Pagination for Vue
-	 */
+	totalPagesInt64 := int64(math.Ceil(float64(count) / float64(pageRequest.PerPage)))
+	buffer := new(bytes.Buffer)
+	isFirstParam := true
 
-	/*
-	 * In 3 distinct conditions, res always has "data" and "meta" attributes.
-	 * Vue == 1 & paginate == 1: res := responses.VueTablePaginateResponse{}
-	 * Paginate == 1: res := responses.PaginateResponse{}
-	 * Else: res := responses.NewResponse(fetch)
-	 */
-	// totalPagesInt64 := int64(math.Ceil(float64(count) / float64(pageRequest.PerPage)))
-	// buffer := new(bytes.Buffer)
-	// isFirstParam := true
+	for k, v := range r.URL.Query() {
+		if k != "page" {
+			if !isFirstParam {
+				buffer.WriteString("&")
+			} else {
+				isFirstParam = false
+			}
+			buffer.WriteString(k + "=" + v[0])
+		}
+	}
 
-	// for k, v := range r.URL.Query() {
-	// 	if k != "page" {
-	// 		if !isFirstParam {
-	// 			buffer.WriteString("&")
-	// 		} else {
-	// 			isFirstParam = false
-	// 		}
-	// 		buffer.WriteString(k + "=" + v[0])
-	// 	}
-	// }
+	path := env.Get("APP_HOST") + "/api/v1/claims?" + buffer.String()
+	nextPageUrl, prevPageUrl := "", ""
 
-	// path := env.Get("APP_HOST") + "/api/v1/claims?" + buffer.String()
-	// nextPageUrl, prevPageUrl := "", ""
+	if pageRequest.Page >= 1 && pageRequest.Page <= totalPagesInt64 {
+		nextPageUrl = checkPage(pageRequest.Page, totalPagesInt64, 1, isFirstParam, path)
+		prevPageUrl = checkPage(pageRequest.Page, 1, -1, isFirstParam, path)
+	}
 
-	// if pageRequest.Page >= 1 && pageRequest.Page <= totalPagesInt64 {
-	// 	nextPageUrl = checkPage(pageRequest.Page, totalPagesInt64, 1, isFirstParam, path)
-	// 	prevPageUrl = checkPage(pageRequest.Page, 1, -1, isFirstParam, path)
-	// }
-
-	//Set res' attribute and type:
-	//res := setResponse(vue, paginate, fetch, page, per_page, totalPagesInt64, count, path, nextPageUrl, prevPageUrl)
-	// res := setResponse(pageRequest, fetch, totalPagesInt64, count, path, nextPageUrl, prevPageUrl)
-
-	res := responses.NewResponse(fetch)
+	res := setResponse(pageRequest, fetch, totalPagesInt64, count, path, nextPageUrl, prevPageUrl)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

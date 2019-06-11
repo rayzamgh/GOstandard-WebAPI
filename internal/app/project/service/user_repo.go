@@ -22,7 +22,7 @@ func (r *MongoRepo) FetchIndexUser(data *project.PageRequest) ([]*project.User, 
 	}
 
 	exclusiveFilter := []bson.D{
-		bson.D{{"transaction.document_number", primitive.Regex{Pattern: ".*.*", Options: "i"}}},
+		bson.D{{"full_name", primitive.Regex{Pattern: ".*.*", Options: "i"}}},
 	}
 
 	if len(data.Filters) > 0 {

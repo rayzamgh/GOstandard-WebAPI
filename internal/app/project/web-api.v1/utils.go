@@ -160,3 +160,89 @@ func (m M) GetString(key string) (string, error) {
 func setStatus(r *http.Request, status int) {
 	*r = *r.WithContext(context.WithValue(r.Context(), statusCtxKey, status))
 }
+
+/*
+ * Function to return page number (nextPage or prevPage)
+ * @param:
+ * pageFirst is current page, pageSecond is the boundary page (1 or lastPage)
+ * pageRequest is either 1 or -1, for strconv.Itoa method.
+ * isFirstParam is a boolean variable, path is URLPath (string type)
+ */
+func checkPage(pageFirst int64, pageSecond int64, pageRequest int, isFirstParam bool, path string) string {
+	page := ""
+	if pageFirst != pageSecond {
+		page = "page=" + strconv.Itoa(int(pageFirst)+pageRequest) + path
+		if !isFirstParam {
+			page = "&" + page
+		}
+	}
+	//fmt.Println("Page next/prev: ", page)
+	return page
+}
+
+/*
+ * Function to return response of setResponseVuePaginate type.
+ */
+func setResponseVuePaginate(data interface{}, page int64, per_page int64, total_pages int64, count int) *responses.VueTablePaginateResponse {
+	response := &responses.VueTablePaginateResponse{
+		Data: data,
+		Meta: responses.SimpleMeta{
+			StatusCode: 200,
+			Message:    []string{"Success"},
+		},
+		CurrentPage: page,
+		From:        (page-1)*10 + 1,
+		LastPage:    total_pages,
+		PerPage:     per_page,
+		To:          int64(int(count) % int(per_page)),
+		Total:       int64(count),
+	}
+	if page == total_pages {
+		response.To = page * 10
+	}
+	return response
+}
+
+/*
+ * Function to return response of setResponsePaginate type.
+ */
+func setResponsePaginate(data interface{}, page int64, per_page int64, total_pages int64, count int) *responses.PaginateResponse {
+	response := &responses.PaginateResponse{
+		Data: data,
+		Meta: responses.PaginationMeta{
+			Meta: responses.SimpleMeta{
+				StatusCode: 200,
+				Message:    []string{"Success"},
+			},
+			Pagination: responses.Paginator{
+				CurrentPage: page,
+				TotalPages:  int(total_pages),
+				PerPage:     per_page,
+				Total:       count,
+			},
+		},
+	}
+	return response
+}
+
+/*
+ * Function to return response, depends on three conditions specified in the function.
+ * @param: half of the params specified will be passed to another function helpers
+ */
+func setResponse(pageRequest *project.PageRequest, data interface{}, total_pages int64, count int, path string, nextPageUrl string, prevPageUrl string) interface{} {
+	if pageRequest.Vue == 1 && pageRequest.Paginate == 1 {
+		res := setResponseVuePaginate(data, pageRequest.Page, pageRequest.PerPage, total_pages, count)
+		res.Path = path
+		res.NextPageUrl, res.PrevPageUrl = nextPageUrl, prevPageUrl
+		return res
+	} else if pageRequest.Paginate == 1 {
+		res := setResponsePaginate(data, pageRequest.Page, pageRequest.PerPage, total_pages, count)
+		res.Meta.Pagination.Count = count
+		res.Meta.Pagination.Links = make(map[string]string)
+		res.Meta.Pagination.Links["next"], res.Meta.Pagination.Links["prev"] = nextPageUrl, prevPageUrl
+		return res
+	} else {
+		res := responses.NewResponse(data)
+		return res
+	}
+}
