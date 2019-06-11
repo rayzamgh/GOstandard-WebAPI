@@ -1,0 +1,7 @@
+.DS_Store
+/vendor
+.env
+Gopkg.lock
+main.exe
+myrsync.sh
+internal/storage/project/*
