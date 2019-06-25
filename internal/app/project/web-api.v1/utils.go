@@ -203,13 +203,9 @@ func setResponsePagination(pageRequest *project.PageRequest, data interface{}, c
 		From:        (pageRequest.Page - 1) * 10 + 1,
 		LastPage:    int64(math.Ceil(float64(count) / float64(pageRequest.PerPage))),
 		PerPage:     pageRequest.PerPage,
-		To:          int64(int(count) % int(pageRequest.PerPage)),
+		To:          int64(int(pageRequest.Page) * int(pageRequest.PerPage)),
 		Total:       int64(count),
 		Path: 		 env.Get("APP_HOST") + pageUrl + "?" + params,
-	}
-
-	if pageRequest.Page == response.LastPage {
-		response.To = pageRequest.Page * 10
 	}
 
 	if pageRequest.Page >= 1 && pageRequest.Page < response.LastPage {
