@@ -1,14 +1,17 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"gitlab.com/standard-go/project/internal/app/project"
 	"gitlab.com/standard-go/project/internal/app/responses"
+	"gitlab.com/standard-go/project/internal/app/config/env"
 )
 
 /*
@@ -161,88 +164,69 @@ func setStatus(r *http.Request, status int) {
 	*r = *r.WithContext(context.WithValue(r.Context(), statusCtxKey, status))
 }
 
-/*
- * Function to return page number (nextPage or prevPage)
- * @param:
- * pageFirst is current page, pageSecond is the boundary page (1 or lastPage)
- * pageRequest is either 1 or -1, for strconv.Itoa method.
- * isFirstParam is a boolean variable, path is URLPath (string type)
- */
-func checkPage(pageFirst int64, pageSecond int64, pageRequest int, isFirstParam bool, path string) string {
-	page := ""
-	if pageFirst != pageSecond {
-		page = "page=" + strconv.Itoa(int(pageFirst)+pageRequest) + path
-		if !isFirstParam {
-			page = "&" + page
+func setPaginate(r *http.Request, pageRequest *project.PageRequest, data interface{}, count int, pageUrl string) interface{} {
+	var res interface{}
+
+	buffer := new(bytes.Buffer)
+	isFirstParam := true
+	for k, v := range r.URL.Query() {
+		if k != "page" {
+			if !isFirstParam {
+				buffer.WriteString("&")
+			} else {
+				isFirstParam = false
+			}
+			buffer.WriteString(k)
+			buffer.WriteString("=")
+			buffer.WriteString(v[0])
 		}
 	}
-	//fmt.Println("Page next/prev: ", page)
-	return page
+
+	if pageRequest.Paginate == 1 {
+		res = setResponsePagination(pageRequest, data, count, pageUrl, buffer.String(), isFirstParam)
+	} else {
+		res = responses.NewResponse(data)
+		return res
+	}
+
+	return res
 }
 
-/*
- * Function to return response of setResponseVuePaginate type.
- */
-func setResponseVuePaginate(data interface{}, page int64, per_page int64, total_pages int64, count int) *responses.VueTablePaginateResponse {
+func setResponsePagination(pageRequest *project.PageRequest, data interface{}, count int, pageUrl string, params string, isFirstParam bool) interface{} {
 	response := &responses.VueTablePaginateResponse{
 		Data: data,
 		Meta: responses.SimpleMeta{
 			StatusCode: 200,
 			Message:    []string{"Success"},
 		},
-		CurrentPage: page,
-		From:        (page-1)*10 + 1,
-		LastPage:    total_pages,
-		PerPage:     per_page,
-		To:          int64(int(count) % int(per_page)),
+		CurrentPage: pageRequest.Page,
+		From:        (pageRequest.Page - 1) * 10 + 1,
+		LastPage:    int64(math.Ceil(float64(count) / float64(pageRequest.PerPage))),
+		PerPage:     pageRequest.PerPage,
+		To:          int64(int(count) % int(pageRequest.PerPage)),
 		Total:       int64(count),
+		Path: 		 env.Get("APP_HOST") + pageUrl + "?" + params,
 	}
-	if page == total_pages {
-		response.To = page * 10
-	}
-	return response
-}
 
-/*
- * Function to return response of setResponsePaginate type.
- */
-func setResponsePaginate(data interface{}, page int64, per_page int64, total_pages int64, count int) *responses.PaginateResponse {
-	response := &responses.PaginateResponse{
-		Data: data,
-		Meta: responses.PaginationMeta{
-			Meta: responses.SimpleMeta{
-				StatusCode: 200,
-				Message:    []string{"Success"},
-			},
-			Pagination: responses.Paginator{
-				CurrentPage: page,
-				TotalPages:  int(total_pages),
-				PerPage:     per_page,
-				Total:       count,
-			},
-		},
+	if pageRequest.Page == response.LastPage {
+		response.To = pageRequest.Page * 10
 	}
-	return response
-}
 
-/*
- * Function to return response, depends on three conditions specified in the function.
- * @param: half of the params specified will be passed to another function helpers
- */
-func setResponse(pageRequest *project.PageRequest, data interface{}, total_pages int64, count int, path string, nextPageUrl string, prevPageUrl string) interface{} {
-	if pageRequest.Vue == 1 && pageRequest.Paginate == 1 {
-		res := setResponseVuePaginate(data, pageRequest.Page, pageRequest.PerPage, total_pages, count)
-		res.Path = path
-		res.NextPageUrl, res.PrevPageUrl = nextPageUrl, prevPageUrl
-		return res
-	} else if pageRequest.Paginate == 1 {
-		res := setResponsePaginate(data, pageRequest.Page, pageRequest.PerPage, total_pages, count)
-		res.Meta.Pagination.Count = count
-		res.Meta.Pagination.Links = make(map[string]string)
-		res.Meta.Pagination.Links["next"], res.Meta.Pagination.Links["prev"] = nextPageUrl, prevPageUrl
-		return res
-	} else {
-		res := responses.NewResponse(data)
-		return res
+	if pageRequest.Page >= 1 && pageRequest.Page < response.LastPage {
+		nextPage := "page=" + strconv.Itoa(int(pageRequest.Page)+1)
+		if !isFirstParam {
+			nextPage = "&" + nextPage
+		}
+		response.NextPageUrl = env.Get("APP_HOST") + pageUrl + "?" + params + nextPage
 	}
+
+	if pageRequest.Page > 1 && pageRequest.Page <= response.LastPage {
+		prevPage := "page=" + strconv.Itoa(int(pageRequest.Page)-1)
+		if !isFirstParam {
+			prevPage = "&" + prevPage
+		}
+		response.PrevPageUrl = env.Get("APP_HOST") + pageUrl + "?" + params + prevPage
+	}
+
+	return response;
 }

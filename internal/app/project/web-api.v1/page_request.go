@@ -23,7 +23,6 @@ func PageRequestCtx(next http.Handler) http.Handler {
 			Page:     1,
 			PerPage:  10,
 			Paginate: 0,
-			Vue:      0,
 			Search:   "",
 		}
 		query := r.URL.Query()
@@ -38,10 +37,6 @@ func PageRequestCtx(next http.Handler) http.Handler {
 
 		if query.Get("paginate") != "" {
 			pageRequest.Paginate = 1
-		}
-
-		if query.Get("vue") != "" {
-			pageRequest.Vue = 1
 		}
 
 		if query.Get("search") != "" {

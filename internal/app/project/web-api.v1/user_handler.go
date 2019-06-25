@@ -1,17 +1,12 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
-	// "errors"
-	"math"
 	"net/http"
-	// "fmt"
 
 	"github.com/go-chi/chi"
 
 	"gitlab.com/standard-go/project/internal/app/project"
-	"gitlab.com/standard-go/project/internal/app/config/env"
 	"gitlab.com/standard-go/project/internal/app/responses"
 )
 
@@ -24,35 +19,11 @@ func IndexUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalPagesInt64 := int64(math.Ceil(float64(count) / float64(pageRequest.PerPage)))
-	buffer := new(bytes.Buffer)
-	isFirstParam := true
-
-	for k, v := range r.URL.Query() {
-		if k != "page" {
-			if !isFirstParam {
-				buffer.WriteString("&")
-			} else {
-				isFirstParam = false
-			}
-			buffer.WriteString(k + "=" + v[0])
-		}
-	}
-
-	path := env.Get("APP_HOST") + "/api/v1/claims?" + buffer.String()
-	nextPageUrl, prevPageUrl := "", ""
-
-	if pageRequest.Page >= 1 && pageRequest.Page <= totalPagesInt64 {
-		nextPageUrl = checkPage(pageRequest.Page, totalPagesInt64, 1, isFirstParam, path)
-		prevPageUrl = checkPage(pageRequest.Page, 1, -1, isFirstParam, path)
-	}
-
-	res := setResponse(pageRequest, fetch, totalPagesInt64, count, path, nextPageUrl, prevPageUrl)
+	res := setPaginate(r, pageRequest, fetch, count, project.UserUrl)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(res)
-
 }
 
 func ShowUser(w http.ResponseWriter, r *http.Request) {

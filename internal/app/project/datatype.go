@@ -122,7 +122,6 @@ func (t *Token) ToUser() AuthUser {
 type PageRequest struct {
     Page     int64
     Paginate int64
-    Vue      int64
     PerPage  int64
     Search   string
     Status   string

@@ -8,6 +8,7 @@ import (
 
 	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
+	"github.com/mongodb/mongo-go-driver/mongo/options"
 	log "github.com/sirupsen/logrus"
 
 	"gitlab.com/standard-go/project/internal/app/project"
@@ -40,7 +41,24 @@ func (r *MongoRepo) FetchIndexUser(data *project.PageRequest) ([]*project.User, 
 	}
 
 	count, err := collection.Count(context.TODO(), filter, nil)
-	fetch, err := collection.Find(context.TODO(), filter, nil)
+
+	options := options.Find()
+	if len(data.Sorts) > 0 {
+		for _, v := range data.Sorts {
+			if sor := v.ToBson(); sor != nil {
+				options.SetSort(sor)
+			}
+		}
+	}
+
+	if data.Paginate == 1 {
+		options.SetLimit(data.PerPage)
+		if data.Page >= 1 {
+			options.SetSkip(data.PerPage * (data.Page - 1))
+		}
+	}
+
+	fetch, err := collection.Find(context.TODO(), filter, options)
 	if err != nil {
 		log.Fatal(err)
 		return nil, 0, errors.New("500")
@@ -178,6 +196,7 @@ func (r *MongoRepo) FetchDestroyUser(id string) error {
 
 	now := time.Now()
 
+	data.UpdatedAt = now
 	data.DeletedAt = now
 
 	filter = bson.M{"deleted_at": nil, "_id": oid}
